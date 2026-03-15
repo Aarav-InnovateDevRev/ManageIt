@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/static/style.css">
+
+</head>
+<body>
+
+<h1>Orders</h1>
+
+<form method="POST">
+
+<input name="name" placeholder="Customer"><br>
+
+<input name="product" placeholder="Product"><br>
+
+<input name="price" placeholder="Price"><br>
+
+<button>Add Order</button>
+
+</form>
+
+{% for o in orders %}
+
+<p>{{o[0]}} - {{o[1]}} - ₹{{o[2]}}</p>
+
+{% endfor %}
+
+</body>
+</html>
