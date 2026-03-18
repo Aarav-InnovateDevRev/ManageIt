@@ -49,8 +49,8 @@ def signup():
             cur = conn.cursor()
 
             cur.execute(
-            "INSERT INTO users(username,password) VALUES(%s,%s)",
-            (username,password)
+                "INSERT INTO users(username,password) VALUES(%s,%s)",
+                (username,password)
             )
 
             conn.commit()
@@ -60,6 +60,10 @@ def signup():
 
         except Exception as e:
             print("ERROR:", e)
+
+            if "duplicate key" in str(e):
+                return "Username already exists 😅"
+
             return "Signup Failed"
 
     return render_template("signup.html")
