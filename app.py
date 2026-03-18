@@ -44,21 +44,25 @@ def signup():
         username = request.form["username"]
         password = request.form["password"]
 
-        conn = get_db()
-        cur = conn.cursor()
+        try:
+            conn = get_db()
+            cur = conn.cursor()
 
-        cur.execute(
-        "INSERT INTO users(username,password) VALUES(%s,%s)",
-        (username,password)
-        )
+            cur.execute(
+            "INSERT INTO users(username,password) VALUES(%s,%s)",
+            (username,password)
+            )
 
-        conn.commit()
-        conn.close()
+            conn.commit()
+            conn.close()
 
-        return redirect("/")
+            return redirect("/")
+
+        except Exception as e:
+            print("ERROR:", e)
+            return "Signup Failed"
 
     return render_template("signup.html")
-
 
 @app.route("/home")
 def home():
