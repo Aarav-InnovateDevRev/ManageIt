@@ -30,15 +30,16 @@ class User(db.Model):
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey(User.id), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", name="fk_task_user"), nullable=False)
     task = db.Column(db.Text, nullable=False)
 
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey(User.id), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", name="fk_order_user"), nullable=False)
     name = db.Column(db.String(255))
     product = db.Column(db.String(255))
     price = db.Column(db.Numeric(10,2))
+
 
 # ── ERROR HANDLERS ──
 @app.errorhandler(500)
