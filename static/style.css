@@ -1,32 +1,37 @@
-body{
-
-font-family:Arial;
-text-align:center;
-background:#f4f4f4;
-
+/* ManageIt Beautiful Theme - Beige/Brown */
+body {
+    background: linear-gradient(to bottom, #fdf6e3, #f5e8c7);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #5d4037;
 }
 
-input{
+.bg-brown { background-color: #8d5524 !important; }
+.text-brown { color: #8d5524 !important; }
 
-padding:10px;
-margin:6px;
-width:200px;
-
+.card {
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(139, 69, 19, 0.2);
+    background: #fffaf0;
+    border: none;
 }
 
-button{
-
-padding:10px;
-background:black;
-color:white;
-border:none;
-
+.btn-primary {
+    background-color: #8d5524;
+    border: none;
+    transition: all 0.3s;
 }
 
-a{
+.btn-primary:hover {
+    background-color: #6b3d1a;
+    transform: translateY(-2px);
+}
 
-display:block;
-margin:12px;
-font-size:18px;
+.alert { border-radius: 12px; }
 
+pre {
+    background: #f8f1e3;
+    padding: 1.5rem;
+    border-radius: 12px;
+    overflow-x: auto;
+    font-size: 0.95rem;
 }
