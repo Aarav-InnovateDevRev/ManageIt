@@ -19,7 +19,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"poolclass": "sqlalchemy.pool.NullPoo
 
 db = SQLAlchemy(app)
 print("=== ALIVE DEBUG ===")
-print("Python version:", sys.version
+print("Python version:", sys.version)
 
 # ── MODELS ──
 class User(db.Model):
