@@ -1,158 +1,132 @@
-from flask import Flask, render_template, request, redirect, session
-import database
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+import os
+import traceback
 
 app = Flask(__name__)
-app.secret_key = "supersecretkey"
+app.secret_key = os.environ.get("SECRET_KEY") or "supersecret1234567890changeit2026"
 
+# Supabase connection (works with your existing DATABASE_URL on Render)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-def get_db():
-    return database.connect()
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"poolclass": "sqlalchemy.pool.NullPool"}
 
+db = SQLAlchemy(app)
 
-@app.route("/", methods=["GET","POST"])
-def login():
+# ====================== MODELS ======================
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
 
-    if request.method == "POST":
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    task = db.Column(db.Text, nullable=False)
 
-        username = request.form["username"]
-        password = request.form["password"]
+class Order(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(255))
+    product = db.Column(db.String(255))
+    price = db.Column(db.Numeric(10,2))
 
-        conn = get_db()
-        cur = conn.cursor()
+# ====================== ERROR PAGES ======================
+@app.errorhandler(500)
+def server_error(e):
+    tb = traceback.format_exc()
+    return render_template('error.html', error=str(e), traceback=tb), 500
 
-        cur.execute(
-        "SELECT id FROM users WHERE username=%s AND password=%s",
-        (username, password)
-        )
+@app.errorhandler(404)
+def not_found(e):
+    return render_template('error.html', error="Page not found", traceback=None), 404
 
-        user = cur.fetchone()
+# ====================== ROUTES ======================
+@app.route("/init")  # Run this once after deploy
+def init_db():
+    db.create_all()
+    return "✅ Tables created! Now delete this route if you want."
 
-        conn.close()
+@app.route("/")
+def index():
+    return redirect(url_for("login"))
 
-        if user:
-            session["user_id"] = user[0]
-            return redirect("/home")
-
-    return render_template("login.html")
-
-
-@app.route("/signup", methods=["GET","POST"])
+@app.route("/signup", methods=["GET", "POST"])
 def signup():
-
     if request.method == "POST":
-
-        username = request.form["username"]
-        password = request.form["password"]
-
-        try:
-            conn = get_db()
-            cur = conn.cursor()
-
-            cur.execute(
-                "INSERT INTO users(username,password) VALUES(%s,%s)",
-                (username,password)
-            )
-
-            conn.commit()
-            conn.close()
-
-            return redirect("/")
-
-        except Exception as e:
-            print("ERROR:", e)
-
-            if "duplicate key" in str(e):
-                return "Username already exists 😅"
-
-            return "Signup Failed"
-
+        username = request.form.get("username")
+        password = request.form.get("password")
+        if not username or not password:
+            flash("Please fill all fields", "danger")
+            return redirect(url_for("signup"))
+        if User.query.filter_by(username=username).first():
+            flash("Username already exists!", "danger")
+            return redirect(url_for("signup"))
+        new_user = User(username=username, password=generate_password_hash(password))
+        db.session.add(new_user)
+        db.session.commit()
+        flash("Account created! Now login.", "success")
+        return redirect(url_for("login"))
     return render_template("signup.html")
 
-@app.route("/home")
-def home():
-
-    if "user_id" not in session:
-        return redirect("/")
-
-    return render_template("home.html")
-
-
-@app.route("/tasks", methods=["GET","POST"])
-def tasks():
-
-    if "user_id" not in session:
-        return redirect("/")
-
-    conn = get_db()
-    cur = conn.cursor()
-
-    user = session["user_id"]
-
+@app.route("/login", methods=["GET", "POST"])
+def login():
     if request.method == "POST":
-
-        task = request.form["task"]
-
-        cur.execute(
-        "INSERT INTO tasks(user_id,task) VALUES(%s,%s)",
-        (user,task)
-        )
-
-        conn.commit()
-
-    cur.execute(
-    "SELECT task FROM tasks WHERE user_id=%s",
-    (user,)
-    )
-
-    tasks = cur.fetchall()
-
-    conn.close()
-
-    return render_template("tasks.html", tasks=tasks)
-
-
-@app.route("/orders", methods=["GET","POST"])
-def orders():
-
-    if "user_id" not in session:
-        return redirect("/")
-
-    conn = get_db()
-    cur = conn.cursor()
-
-    user = session["user_id"]
-
-    if request.method == "POST":
-
-        name = request.form["name"]
-        product = request.form["product"]
-        price = request.form["price"]
-
-        cur.execute(
-        "INSERT INTO orders(user_id,name,product,price) VALUES(%s,%s,%s,%s)",
-        (user,name,product,price)
-        )
-
-        conn.commit()
-
-    cur.execute(
-    "SELECT name,product,price FROM orders WHERE user_id=%s",
-    (user,)
-    )
-
-    orders = cur.fetchall()
-
-    conn.close()
-
-    return render_template("orders.html", orders=orders)
-
+        user = User.query.filter_by(username=request.form.get("username")).first()
+        if user and check_password_hash(user.password, request.form.get("password")):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            flash("Welcome back!", "success")
+            return redirect(url_for("dashboard"))
+        flash("Wrong username or password", "danger")
+    return render_template("login.html")
 
 @app.route("/logout")
 def logout():
-
     session.clear()
-    return redirect("/")
+    return redirect(url_for("login"))
 
+@app.route("/dashboard")
+def dashboard():
+    if 'user_id' not in session:
+        return redirect(url_for("login"))
+    tasks_count = Task.query.filter_by(user_id=session['user_id']).count()
+    orders = Order.query.filter_by(user_id=session['user_id']).all()
+    total_revenue = sum(float(o.price or 0) for o in orders)
+    return render_template("dashboard.html", tasks_count=tasks_count, total_revenue=total_revenue)
+
+@app.route("/tasks", methods=["GET", "POST"])
+def tasks():
+    if 'user_id' not in session: return redirect(url_for("login"))
+    if request.method == "POST":
+        new_task = Task(user_id=session['user_id'], task=request.form.get("task"))
+        db.session.add(new_task)
+        db.session.commit()
+        flash("Task added!", "success")
+    all_tasks = Task.query.filter_by(user_id=session['user_id']).all()
+    return render_template("tasks.html", tasks=all_tasks)
+
+@app.route("/orders", methods=["GET", "POST"])
+def orders():
+    if 'user_id' not in session: return redirect(url_for("login"))
+    if request.method == "POST":
+        new_order = Order(
+            user_id=session['user_id'],
+            name=request.form.get("name"),
+            product=request.form.get("product"),
+            price=float(request.form.get("price") or 0)
+        )
+        db.session.add(new_order)
+        db.session.commit()
+        flash("Order added!", "success")
+    all_orders = Order.query.filter_by(user_id=session['user_id']).all()
+    total = sum(float(o.price or 0) for o in all_orders)
+    return render_template("orders.html", orders=all_orders, total=total)
 
 if __name__ == "__main__":
     app.run(debug=True)
