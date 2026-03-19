@@ -26,12 +26,12 @@ class User(db.Model):
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # ← change to 'users.id'
     task = db.Column(db.Text, nullable=False)
 
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # ← change to 'users.id'
     name = db.Column(db.String(255))
     product = db.Column(db.String(255))
     price = db.Column(db.Numeric(10,2))
