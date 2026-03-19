@@ -1,32 +1,32 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="/static/style.css">
-
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders - ManageIt</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
-<body>
-
-<h1>Orders</h1>
-
-<form method="POST">
-
-<input name="name" placeholder="Customer"><br>
-
-<input name="product" placeholder="Product"><br>
-
-<input name="price" placeholder="Price"><br>
-
-<button>Add Order</button>
-
-</form>
-
-{% for o in orders %}
-
-<p>{{o[0]}} - {{o[1]}} - ₹{{o[2]}}</p>
-
-{% endfor %}
-
+<body class="bg-light">
+<nav class="navbar navbar-dark bg-brown"><div class="container"><a class="navbar-brand" href="/dashboard">← Dashboard</a></div></nav>
+<div class="container py-5">
+    <h2><i class="fas fa-receipt"></i> Orders</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for cat,msg in messages %}<div class="alert alert-{{cat}}">{{msg}}</div>{% endfor %}{% endif %}{% endwith %}
+    <form method="POST" class="row g-3 mb-5">
+        <div class="col-md-4"><input type="text" name="name" class="form-control" placeholder="Customer Name" required></div>
+        <div class="col-md-4"><input type="text" name="product" class="form-control" placeholder="Product" required></div>
+        <div class="col-md-2"><input type="number" step="0.01" name="price" class="form-control" placeholder="Price" required></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Add Order</button></div>
+    </form>
+    <h5>Total Revenue: ₹{{total|round(0)}}</h5>
+    <div class="row">
+        {% for o in orders %}
+        <div class="col-md-6 mb-3">
+            <div class="card p-3">
+                <strong>{{o.name}}</strong> - {{o.product}} <span class="float-end">₹{{o.price}}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
 </body>
 </html>
