@@ -1,5 +1,4 @@
 flask
-flask-sqlalchemy
-psycopg[binary,pool]==3.2.3
-gunicorn
 werkzeug
+gunicorn
+psycopg2-binary>=2.9.9
