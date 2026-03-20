@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 
 app = Flask(__name__)
+print("=== THIS IS THE NEW VERSION 2026-03-20 ===")
 
 # Secret key – must match the SECRET_KEY you set in Render environment variables
 app.secret_key = os.environ.get("SECRET_KEY") or "supersecret1234567890changeit2026"
