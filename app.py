@@ -1,12 +1,13 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-from database import get_db  # ← this is your raw connection file
+import requests  # for AI API calls
+from database import get_db
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or "supersecret1234567890changeit2026"
 
-# ── ERROR PAGES ──
+# ── ERROR HANDLER ──
 @app.errorhandler(500)
 def server_error(e):
     return render_template('error.html', error=str(e)), 500
@@ -15,39 +16,77 @@ def server_error(e):
 def not_found(e):
     return render_template('error.html', error="Page not found"), 404
 
-# ── HEALTH CHECK (to see if app starts) ──
+# ── HEALTH & INIT ──
 @app.route("/health")
 def health():
     return "OK - App is running (raw psycopg2 mode)", 200
 
-# ── INIT TABLES (run once) ──
 @app.route("/init")
 def init_db():
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            username VARCHAR(80) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS tasks (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            task TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS orders (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            name VARCHAR(255),
-            product VARCHAR(255),
-            price NUMERIC(10,2)
-        );
-    """)
-    conn.commit()
-    cur.close()
-    conn.close()
-    return "Tables created or already exist!"
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(80) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS tasks (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                task TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS orders (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                name VARCHAR(255),
+                product VARCHAR(255),
+                price NUMERIC(10,2)
+            );
+        """)
+        conn.commit()
+        return "Tables created or already exist!"
+    except Exception as e:
+        return f"Init failed: {str(e)}", 500
+    finally:
+        cur.close()
+        conn.close()
+
+# ── AI CHATBOT ROUTE (Grok / xAI example) ──
+@app.route("/chat", methods=["POST"])
+def chat():
+    if 'user_id' not in session:
+        return jsonify({"error": "Please login first"}), 401
+    
+    message = request.json.get("message")
+    if not message:
+        return jsonify({"error": "No message provided"}), 400
+
+    # Replace with your real xAI / Grok API key and endpoint
+    api_key = os.environ.get("XAI_API_KEY")  # add this to Render env vars
+    if not api_key:
+        return jsonify({"error": "AI API key not set"}), 500
+
+    try:
+        response = requests.post(
+            "https://api.x.ai/v1/chat/completions",  # example endpoint – check docs
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "grok-beta",  # or latest model name
+                "messages": [{"role": "user", "content": message}],
+                "temperature": 0.7,
+                "max_tokens": 300
+            }
+        )
+        response.raise_for_status()
+        reply = response.json()["choices"][0]["message"]["content"]
+        return jsonify({"reply": reply})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ── SIGNUP ──
 @app.route("/signup", methods=["GET", "POST"])
@@ -70,7 +109,7 @@ def signup():
             hashed = generate_password_hash(password)
             cur.execute("INSERT INTO users (username, password) VALUES (%s, %s)", (username, hashed))
             conn.commit()
-            flash("Account created! Login now.", "success")
+            flash("Account created successfully! Please login.", "success")
             return redirect(url_for("login"))
         except Exception as e:
             conn.rollback()
@@ -111,30 +150,75 @@ def logout():
     flash("Logged out", "info")
     return redirect(url_for("login"))
 
-# ── DASHBOARD (basic) ──
+# ── DASHBOARD ──
 @app.route("/dashboard")
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for("login"))
-    return render_template("dashboard.html", username=session['username'])
+    
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM tasks WHERE user_id = %s", (session['user_id'],))
+    tasks_count = cur.fetchone()[0]
+    cur.execute("SELECT SUM(price) FROM orders WHERE user_id = %s", (session['user_id'],))
+    total_revenue = cur.fetchone()[0] or 0
+    cur.close()
+    conn.close()
+    
+    return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, total_revenue=total_revenue)
 
-@app.route("/test-db")
-def test_db():
-    try:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT version();")
-        version = cur.fetchone()
-        cur.close()
-        conn.close()
-        return f"Database connected! PostgreSQL version: {version[0]}"
-    except Exception as e:
-        import traceback
-        error_msg = traceback.format_exc()
-        print("DB TEST ERROR:", error_msg)  # also goes to Render logs
-        return f"Connection failed: {str(e)}<br><pre>{error_msg}</pre>", 500
+# ── TASKS ──
+@app.route("/tasks", methods=["GET", "POST"])
+def tasks():
+    if 'user_id' not in session:
+        return redirect(url_for("login"))
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    if request.method == "POST":
+        task = request.form.get("task")
+        if task:
+            cur.execute("INSERT INTO tasks (user_id, task) VALUES (%s, %s)", (session['user_id'], task))
+            conn.commit()
+            flash("Task added!", "success")
+    
+    cur.execute("SELECT id, task FROM tasks WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
+    tasks_list = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    return render_template("tasks.html", tasks=tasks_list)
 
-# Add tasks and orders routes later (once login works)
+# ── ORDERS ──
+@app.route("/orders", methods=["GET", "POST"])
+def orders():
+    if 'user_id' not in session:
+        return redirect(url_for("login"))
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    if request.method == "POST":
+        name = request.form.get("name")
+        product = request.form.get("product")
+        price = request.form.get("price")
+        try:
+            price = float(price)
+            cur.execute("INSERT INTO orders (user_id, name, product, price) VALUES (%s, %s, %s, %s)",
+                        (session['user_id'], name, product, price))
+            conn.commit()
+            flash("Order added!", "success")
+        except ValueError:
+            flash("Invalid price format", "danger")
+    
+    cur.execute("SELECT name, product, price FROM orders WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
+    orders_list = cur.fetchall()
+    total = sum(row[2] for row in orders_list)
+    cur.close()
+    conn.close()
+    
+    return render_template("orders.html", orders=orders_list, total=total)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
