@@ -118,6 +118,22 @@ def dashboard():
         return redirect(url_for("login"))
     return render_template("dashboard.html", username=session['username'])
 
+@app.route("/test-db")
+def test_db():
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT version();")
+        version = cur.fetchone()
+        cur.close()
+        conn.close()
+        return f"Database connected! PostgreSQL version: {version[0]}"
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        print("DB TEST ERROR:", error_msg)  # also goes to Render logs
+        return f"Connection failed: {str(e)}<br><pre>{error_msg}</pre>", 500
+
 # Add tasks and orders routes later (once login works)
 
 if __name__ == "__main__":
