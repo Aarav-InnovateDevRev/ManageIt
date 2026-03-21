@@ -220,6 +220,12 @@ def orders():
     
     return render_template("orders.html", orders=orders_list, total=total)
 
+@app.route("/ai-chat")
+def ai_chat_page():
+    if 'user_id' not in session:
+        return redirect(url_for("login"))
+    return render_template("ai_chat.html")
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
