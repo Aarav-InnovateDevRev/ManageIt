@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
+import requests  # for AI API calls
 from database import get_db
 
 app = Flask(__name__)
@@ -15,7 +16,7 @@ def server_error(e):
 def not_found(e):
     return render_template('error.html', error="Page not found"), 404
 
-# ── DEBUG & TEST ROUTES ──
+# ── DEBUG & TEST ROUTES (kept as requested) ──
 @app.route("/health")
 def health():
     return "OK - App is running (raw psycopg2 mode)", 200
@@ -65,6 +66,48 @@ def init_db():
     finally:
         cur.close()
         conn.close()
+
+# ── AI CHATBOT PAGE (HTML interface) ──
+@app.route("/ai-chat")
+def ai_chat_page():
+    if 'user_id' not in session:
+        return redirect(url_for("login"))
+    return render_template("ai_chat.html")
+
+# ── AI CHAT API ENDPOINT (called by JavaScript) ──
+@app.route("/chat", methods=["POST"])
+def chat():
+    if 'user_id' not in session:
+        return jsonify({"error": "Please login first"}), 401
+    
+    message = request.json.get("message")
+    if not message:
+        return jsonify({"error": "No message provided"}), 400
+
+    # Your xAI / Grok API key (set in Render env)
+    api_key = os.environ.get("XAI_API_KEY")
+    if not api_key:
+        return jsonify({"error": "AI API key not set in Render environment"}), 500
+
+    try:
+        response = requests.post(
+            "https://api.x.ai/v1/chat/completions",  # xAI endpoint (check docs if changed)
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "grok-beta",  # or latest model name from x.ai docs
+                "messages": [{"role": "user", "content": message}],
+                "temperature": 0.7,
+                "max_tokens": 300
+            }
+        )
+        response.raise_for_status()
+        reply = response.json()["choices"][0]["message"]["content"]
+        return jsonify({"reply": reply})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ── SIGNUP ──
 @app.route("/signup", methods=["GET", "POST"])
