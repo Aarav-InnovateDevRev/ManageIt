@@ -8,17 +8,17 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         body { background: linear-gradient(to bottom, #fdf6e3, #f5e8c7); }
-        #chat-box { max-height: 60vh; overflow-y: auto; margin-bottom: 1rem; padding: 1rem; }
+        #chat-box { max-height: 60vh; overflow-y: auto; margin-bottom: 1rem; padding: 1rem; border: 1px solid #d7b99f; border-radius: 12px; background: white; }
         .msg { margin: 10px 0; padding: 12px; border-radius: 15px; max-width: 80%; }
         .user-msg { background: #8d5524; color: white; margin-left: auto; }
-        .ai-msg { background: white; border: 1px solid #d7b99f; margin-right: auto; }
+        .ai-msg { background: #fffaf0; border: 1px solid #d7b99f; margin-right: auto; }
     </style>
 </head>
 <body class="container py-5">
     <h2 class="text-center mb-4"><i class="fas fa-robot"></i> AI Business Assistant</h2>
     
-    <div id="chat-box" class="card">
-        <div class="msg ai-msg">Hi! I'm your AI helper. Ask me anything about your printing business, tasks, orders, or growth ideas 😊</div>
+    <div id="chat-box">
+        <div class="msg ai-msg">Hi! I'm your AI helper for your printing business. Ask me anything about tasks, orders, customers, pricing, or growth ideas 😊</div>
     </div>
 
     <div class="input-group mt-3">
@@ -32,13 +32,11 @@
             const text = input.value.trim();
             if (!text) return;
 
-            // Show user message
             const chat = document.getElementById("chat-box");
             chat.innerHTML += `<div class="msg user-msg">${text}</div>`;
             input.value = "";
             chat.scrollTop = chat.scrollHeight;
 
-            // Send to backend
             try {
                 const response = await fetch("/chat", {
                     method: "POST",
@@ -59,7 +57,6 @@
             chat.scrollTop = chat.scrollHeight;
         }
 
-        // Press Enter to send
         document.getElementById("userInput").addEventListener("keypress", (e) => {
             if (e.key === "Enter") sendMessage();
         });
