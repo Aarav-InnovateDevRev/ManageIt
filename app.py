@@ -95,10 +95,10 @@ def chat():
                 "Content-Type": "application/json"
             },
             json={
-                "model": "llama3-8b-8192",   # fast free model
+                "model": "llama-3.3-70b-versatile",   # Current recommended fast model
                 "messages": [{"role": "user", "content": message}],
                 "temperature": 0.7,
-                "max_tokens": 400
+                "max_tokens": 500
             }
         )
         
@@ -111,7 +111,6 @@ def chat():
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 # SIGNUP
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
