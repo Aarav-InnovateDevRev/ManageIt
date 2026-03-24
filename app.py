@@ -74,7 +74,6 @@ def ai_chat_page():
         return redirect(url_for("login"))
     return render_template("ai_chat.html")
 
-# AI CHAT API - Google Gemini
 @app.route("/chat", methods=["POST"])
 def chat():
     if 'user_id' not in session:
@@ -84,26 +83,30 @@ def chat():
     if not message:
         return jsonify({"error": "No message provided"}), 400
 
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        return jsonify({"error": "Gemini API key not set in Render"}), 500
+        return jsonify({"error": "Groq API key not set in Render"}), 500
 
     try:
         response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
-            headers={"Content-Type": "application/json"},
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
             json={
-                "contents": [{
-                    "parts": [{"text": message}]
-                }]
+                "model": "llama3-8b-8192",   # fast free model
+                "messages": [{"role": "user", "content": message}],
+                "temperature": 0.7,
+                "max_tokens": 400
             }
         )
         
         if response.status_code != 200:
-            return jsonify({"error": f"Gemini API error: {response.text}"}), response.status_code
+            return jsonify({"error": f"Groq API error: {response.text}"}), response.status_code
         
         data = response.json()
-        reply = data["candidates"][0]["content"]["parts"][0]["text"]
+        reply = data["choices"][0]["message"]["content"]
         return jsonify({"reply": reply})
         
     except Exception as e:
