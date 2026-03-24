@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import requests
@@ -67,50 +67,40 @@ def init_db():
         cur.close()
         conn.close()
 
-# AI CHAT PAGE
-@app.route("/ai-chat")
-def ai_chat_page():
-    if 'user_id' not in session:
-        return redirect(url_for("login"))
-    return render_template("ai_chat.html")
-
-@app.route("/chat", methods=["POST"])
-def chat():
-    if 'user_id' not in session:
-        return jsonify({"error": "Please login first"}), 401
-    
-    message = request.json.get("message")
-    if not message:
-        return jsonify({"error": "No message provided"}), 400
-
+# HELPER: AI Habit Analysis for Dashboard
+def get_ai_habit_tip(recent_tasks, recent_orders, total_revenue):
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        return jsonify({"error": "Groq API key not set in Render"}), 500
+        return "AI analysis not available right now."
+
+    prompt = f"""
+    You are a helpful business advisor for a small printing shop owner.
+    User has {len(recent_tasks)} recent tasks: {recent_tasks}
+    Recent orders: {recent_orders}
+    Total revenue so far: ₹{total_revenue}
+
+    Give 1-2 short, practical, encouraging tips about their habits, productivity, or business growth.
+    Keep it actionable and positive. Max 2-3 sentences.
+    """
 
     try:
         response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
-                "model": "llama-3.3-70b-versatile",   # Current active Groq model
-                "messages": [{"role": "user", "content": message}],
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.7,
-                "max_tokens": 500
-            }
+                "max_tokens": 300
+            },
+            timeout=15
         )
-        
-        if response.status_code != 200:
-            return jsonify({"error": f"Groq API error: {response.text}"}), response.status_code
-        
+        response.raise_for_status()
         data = response.json()
-        reply = data["choices"][0]["message"]["content"]
-        return jsonify({"reply": reply})
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception:
+        return "Keep going! Small consistent actions lead to big results."
+
 # SIGNUP
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -173,7 +163,7 @@ def logout():
     flash("Logged out", "info")
     return redirect(url_for("login"))
 
-# DASHBOARD
+# DASHBOARD with AI Habit Tip
 @app.route("/dashboard")
 def dashboard():
     if 'user_id' not in session:
@@ -181,14 +171,30 @@ def dashboard():
     
     conn = get_db()
     cur = conn.cursor()
+    
     cur.execute("SELECT COUNT(*) FROM tasks WHERE user_id = %s", (session['user_id'],))
     tasks_count = cur.fetchone()[0]
+    
     cur.execute("SELECT SUM(price) FROM orders WHERE user_id = %s", (session['user_id'],))
     total_revenue = cur.fetchone()[0] or 0
+    
+    # Get recent data for AI
+    cur.execute("SELECT task FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
+    recent_tasks = [row[0] for row in cur.fetchall()]
+    
+    cur.execute("SELECT product, price FROM orders WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
+    recent_orders = cur.fetchall()
+    
     cur.close()
     conn.close()
-    
-    return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, total_revenue=total_revenue)
+
+    ai_tip = get_ai_habit_tip(recent_tasks, recent_orders, total_revenue)
+
+    return render_template("dashboard.html", 
+                           username=session['username'], 
+                           tasks_count=tasks_count, 
+                           total_revenue=total_revenue,
+                           ai_tip=ai_tip)
 
 # TASKS
 @app.route("/tasks", methods=["GET", "POST"])
