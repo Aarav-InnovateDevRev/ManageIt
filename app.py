@@ -74,7 +74,6 @@ def ai_chat_page():
         return redirect(url_for("login"))
     return render_template("ai_chat.html")
 
-# ── AI CHAT API ENDPOINT (called by JavaScript) ──
 @app.route("/chat", methods=["POST"])
 def chat():
     if 'user_id' not in session:
@@ -86,7 +85,7 @@ def chat():
 
     api_key = os.environ.get("XAI_API_KEY")
     if not api_key:
-        return jsonify({"error": "AI API key not set in Render environment"}), 500
+        return jsonify({"error": "AI API key not set"}), 500
 
     try:
         response = requests.post(
@@ -96,15 +95,25 @@ def chat():
                 "Content-Type": "application/json"
             },
             json={
-                "model": "grok-beta",
+                "model": "grok-2-1212",        # Updated to a more stable model name (check x.ai docs if needed)
                 "messages": [{"role": "user", "content": message}],
                 "temperature": 0.7,
-                "max_tokens": 300
-            }
+                "max_tokens": 400,
+                "stream": False
+            },
+            timeout=30
         )
+        
+        if response.status_code == 400:
+            return jsonify({"error": f"Bad Request from xAI: {response.text}"}), 400
+        
         response.raise_for_status()
-        reply = response.json()["choices"][0]["message"]["content"]
+        data = response.json()
+        reply = data["choices"][0]["message"]["content"]
         return jsonify({"reply": reply})
+        
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Request failed: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
