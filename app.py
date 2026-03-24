@@ -95,7 +95,7 @@ def chat():
                 "Content-Type": "application/json"
             },
             json={
-                "model": "llama-3.3-70b-versatile",   # Current recommended fast model
+                "model": "llama-3.3-70b-versatile",   # Current active Groq model
                 "messages": [{"role": "user", "content": message}],
                 "temperature": 0.7,
                 "max_tokens": 500
