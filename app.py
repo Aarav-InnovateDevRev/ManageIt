@@ -74,7 +74,7 @@ def ai_chat_page():
         return redirect(url_for("login"))
     return render_template("ai_chat.html")
 
-# AI CHAT API (fixed model name)
+# AI CHAT API - Google Gemini
 @app.route("/chat", methods=["POST"])
 def chat():
     if 'user_id' not in session:
@@ -84,37 +84,32 @@ def chat():
     if not message:
         return jsonify({"error": "No message provided"}), 400
 
-    api_key = os.environ.get("XAI_API_KEY")
+    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        return jsonify({"error": "AI API key not set in Render"}), 500
+        return jsonify({"error": "Gemini API key not set in Render"}), 500
 
     try:
         response = requests.post(
-            "https://api.x.ai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
+            headers={"Content-Type": "application/json"},
             json={
-                "model": "grok-4.20",          # Current stable flagship model
-                "messages": [{"role": "user", "content": message}],
-                "temperature": 0.7,
-                "max_tokens": 400
-            },
-            timeout=30
+                "contents": [{
+                    "parts": [{"text": message}]
+                }]
+            }
         )
         
         if response.status_code != 200:
-            return jsonify({"error": f"xAI API error: {response.text}"}), response.status_code
+            return jsonify({"error": f"Gemini API error: {response.text}"}), response.status_code
         
         data = response.json()
-        reply = data["choices"][0]["message"]["content"]
+        reply = data["candidates"][0]["content"]["parts"][0]["text"]
         return jsonify({"reply": reply})
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# SIGNUP, LOGIN, DASHBOARD, TASKS, ORDERS (stable)
+# SIGNUP
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
@@ -146,6 +141,7 @@ def signup():
     
     return render_template("signup.html")
 
+# LOGIN
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -168,12 +164,14 @@ def login():
     
     return render_template("login.html")
 
+# LOGOUT
 @app.route("/logout")
 def logout():
     session.clear()
     flash("Logged out", "info")
     return redirect(url_for("login"))
 
+# DASHBOARD
 @app.route("/dashboard")
 def dashboard():
     if 'user_id' not in session:
@@ -190,6 +188,7 @@ def dashboard():
     
     return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, total_revenue=total_revenue)
 
+# TASKS
 @app.route("/tasks", methods=["GET", "POST"])
 def tasks():
     if 'user_id' not in session:
@@ -212,6 +211,7 @@ def tasks():
     
     return render_template("tasks.html", tasks=tasks_list)
 
+# ORDERS
 @app.route("/orders", methods=["GET", "POST"])
 def orders():
     if 'user_id' not in session:
