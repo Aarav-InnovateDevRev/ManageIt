@@ -1,13 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-import requests  # for AI API calls
+import requests
 from database import get_db
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or "supersecret1234567890changeit2026"
 
-# ── ERROR HANDLERS ──
+# ERROR HANDLERS
 @app.errorhandler(500)
 def server_error(e):
     return render_template('error.html', error=str(e)), 500
@@ -16,7 +16,7 @@ def server_error(e):
 def not_found(e):
     return render_template('error.html', error="Page not found"), 404
 
-# ── DEBUG & TEST ROUTES (kept) ──
+# DEBUG ROUTES
 @app.route("/health")
 def health():
     return "OK - App is running (raw psycopg2 mode)", 200
@@ -67,14 +67,13 @@ def init_db():
         cur.close()
         conn.close()
 
-# ── AI CHATBOT PAGE (HTML interface) ──
+# AI CHAT PAGE
 @app.route("/ai-chat")
 def ai_chat_page():
     if 'user_id' not in session:
         return redirect(url_for("login"))
     return render_template("ai_chat.html")
 
-# ── AI CHAT API ENDPOINT (called by JavaScript) ──
 @app.route("/chat", methods=["POST"])
 def chat():
     if 'user_id' not in session:
@@ -84,31 +83,35 @@ def chat():
     if not message:
         return jsonify({"error": "No message provided"}), 400
 
-    api_key = os.environ.get("XAI_API_KEY")
+    api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        return jsonify({"error": "AI API key not set in Render environment"}), 500
+        return jsonify({"error": "Groq API key not set in Render"}), 500
 
     try:
         response = requests.post(
-            "https://api.x.ai/v1/chat/completions",
+            "https://api.groq.com/openai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             },
             json={
-                "model": "grok-beta",
+                "model": "llama-3.3-70b-versatile",   # Current active Groq model
                 "messages": [{"role": "user", "content": message}],
                 "temperature": 0.7,
-                "max_tokens": 300
+                "max_tokens": 500
             }
         )
-        response.raise_for_status()
-        reply = response.json()["choices"][0]["message"]["content"]
+        
+        if response.status_code != 200:
+            return jsonify({"error": f"Groq API error: {response.text}"}), response.status_code
+        
+        data = response.json()
+        reply = data["choices"][0]["message"]["content"]
         return jsonify({"reply": reply})
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-# ── SIGNUP ──
+# SIGNUP
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
@@ -140,7 +143,7 @@ def signup():
     
     return render_template("signup.html")
 
-# ── LOGIN ──
+# LOGIN
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -163,14 +166,14 @@ def login():
     
     return render_template("login.html")
 
-# ── LOGOUT ──
+# LOGOUT
 @app.route("/logout")
 def logout():
     session.clear()
     flash("Logged out", "info")
     return redirect(url_for("login"))
 
-# ── DASHBOARD ──
+# DASHBOARD
 @app.route("/dashboard")
 def dashboard():
     if 'user_id' not in session:
@@ -187,7 +190,7 @@ def dashboard():
     
     return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, total_revenue=total_revenue)
 
-# ── TASKS ──
+# TASKS
 @app.route("/tasks", methods=["GET", "POST"])
 def tasks():
     if 'user_id' not in session:
@@ -210,7 +213,7 @@ def tasks():
     
     return render_template("tasks.html", tasks=tasks_list)
 
-# ── ORDERS ──
+# ORDERS
 @app.route("/orders", methods=["GET", "POST"])
 def orders():
     if 'user_id' not in session:
