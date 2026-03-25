@@ -30,7 +30,6 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Humorous AI Tip -->
         <div class="alert alert-info">
             <i class="fas fa-lightbulb"></i> {{ humor_tip | safe }}
         </div>
@@ -48,15 +47,17 @@
                 <div class="col-md-6 mb-3">
                     <div class="card p-3">
                         <div class="d-flex justify-content-between">
-                            <div class="task-text">{{ task[1] }}</div>
+                            <div>
+                                <div class="task-text">{{ task[1] }}</div>
+                                {% if task[2] %}<small class="text-muted">Deadline: {{ task[2] }}</small>{% endif %}
+                                {% if task[3] %}<small class="text-muted">Goal: {{ task[3] }}</small>{% endif %}
+                            </div>
                             <form method="POST" style="display:inline;">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="task_id" value="{{ task[0] }}">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                             </form>
                         </div>
-                        {% if task[2] %}<small class="text-muted">Deadline: {{ task[2] }}</small>{% endif %}
-                        {% if task[3] %}<small class="text-muted">Goal: {{ task[3] }}</small>{% endif %}
                     </div>
                 </div>
             {% else %}
@@ -65,4 +66,4 @@
         </div>
     </div>
 </body>
-    </html>
+</html>
