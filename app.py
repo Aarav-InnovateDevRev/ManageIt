@@ -48,17 +48,14 @@ def init_db():
             CREATE TABLE IF NOT EXISTS tasks (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                task TEXT NOT NULL,
-                deadline DATE,
-                goal TEXT
+                task TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS orders (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 name VARCHAR(255),
                 product VARCHAR(255),
-                price NUMERIC(10,2),
-                capital_invested NUMERIC(10,2) DEFAULT 0
+                price NUMERIC(10,2)
             );
         """)
         conn.commit()
@@ -70,23 +67,115 @@ def init_db():
         cur.close()
         conn.close()
 
-# AI Habit Tip Helper (for dashboard)
-def get_ai_habit_tip(recent_tasks, recent_orders, total_revenue):
+# AI CHAT PAGE
+@app.route("/ai-chat")
+def ai_chat_page():
+    if 'user_id' not in session:
+        return redirect(url_for("login"))
+    return render_template("ai_chat.html")
+
+# AI CHAT API (Groq)
+@app.route("/chat", methods=["POST"])
+def chat():
+    if 'user_id' not in session:
+        return jsonify({"error": "Please login first"}), 401
+    
+    message = request.json.get("message")
+    if not message:
+        return jsonify({"error": "No message provided"}), 400
+
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        return "AI tip not available right now."
-    prompt = f"User has {len(recent_tasks)} tasks: {recent_tasks}. Recent orders: {recent_orders}. Total revenue: ₹{total_revenue}. Give 1 short, practical, encouraging business tip."
+        return jsonify({"error": "Groq API key not set in Render"}), 500
+
     try:
-        response = requests.post("https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}], "max_tokens": 150})
-        return response.json()["choices"][0]["message"]["content"].strip()
-    except:
-        return "Keep going! Small steps lead to big results."
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": message}],
+                "temperature": 0.7,
+                "max_tokens": 500
+            }
+        )
+        
+        if response.status_code != 200:
+            return jsonify({"error": f"Groq API error: {response.text}"}), response.status_code
+        
+        data = response.json()
+        reply = data["choices"][0]["message"]["content"]
+        return jsonify({"reply": reply})
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-# SIGNUP, LOGIN, LOGOUT (same as before - keep your working code)
+# SIGNUP
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        if not username or not password:
+            flash("Please fill all fields", "danger")
+            return redirect(url_for("signup"))
+        
+        conn = get_db()
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT 1 FROM users WHERE username = %s", (username,))
+            if cur.fetchone():
+                flash("Username already exists! Try another one.", "danger")
+                return redirect(url_for("signup"))
+            
+            hashed = generate_password_hash(password)
+            cur.execute("INSERT INTO users (username, password) VALUES (%s, %s)", (username, hashed))
+            conn.commit()
+            flash("Account created successfully! Please login.", "success")
+            return redirect(url_for("login"))
+        except Exception as e:
+            conn.rollback()
+            flash(f"Signup failed: {str(e)}", "danger")
+        finally:
+            cur.close()
+            conn.close()
+    
+    return render_template("signup.html")
 
-# DASHBOARD with AI Tip
+# LOGIN
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, password FROM users WHERE username = %s", (username,))
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if user and check_password_hash(user[1], password):
+            session['user_id'] = user[0]
+            session['username'] = username
+            flash("Welcome back!", "success")
+            return redirect(url_for("dashboard"))
+        flash("Wrong username or password", "danger")
+    
+    return render_template("login.html")
+
+# LOGOUT
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("Logged out", "info")
+    return redirect(url_for("login"))
+
+# DASHBOARD
 @app.route("/dashboard")
 def dashboard():
     if 'user_id' not in session:
@@ -98,18 +187,12 @@ def dashboard():
     tasks_count = cur.fetchone()[0]
     cur.execute("SELECT SUM(price) FROM orders WHERE user_id = %s", (session['user_id'],))
     total_revenue = cur.fetchone()[0] or 0
-    cur.execute("SELECT task FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
-    recent_tasks = [row[0] for row in cur.fetchall()]
-    cur.execute("SELECT product, price FROM orders WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
-    recent_orders = cur.fetchall()
     cur.close()
     conn.close()
+    
+    return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, total_revenue=total_revenue)
 
-    ai_tip = get_ai_habit_tip(recent_tasks, recent_orders, total_revenue)
-
-    return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, total_revenue=total_revenue, ai_tip=ai_tip)
-
-# TASKS (with delete, deadline, goal)
+# TASKS
 @app.route("/tasks", methods=["GET", "POST"])
 def tasks():
     if 'user_id' not in session:
@@ -119,29 +202,20 @@ def tasks():
     cur = conn.cursor()
     
     if request.method == "POST":
-        action = request.form.get("action")
-        if action == "add":
-            task = request.form.get("task")
-            deadline = request.form.get("deadline")
-            goal = request.form.get("goal")
-            cur.execute("INSERT INTO tasks (user_id, task, deadline, goal) VALUES (%s, %s, %s, %s)",
-                        (session['user_id'], task, deadline, goal))
+        task = request.form.get("task")
+        if task:
+            cur.execute("INSERT INTO tasks (user_id, task) VALUES (%s, %s)", (session['user_id'], task))
             conn.commit()
             flash("Task added!", "success")
-        elif action == "delete":
-            task_id = request.form.get("task_id")
-            cur.execute("DELETE FROM tasks WHERE id = %s AND user_id = %s", (task_id, session['user_id']))
-            conn.commit()
-            flash("Task deleted!", "success")
     
-    cur.execute("SELECT id, task, deadline, goal FROM tasks WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
+    cur.execute("SELECT id, task FROM tasks WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
     tasks_list = cur.fetchall()
     cur.close()
     conn.close()
     
     return render_template("tasks.html", tasks=tasks_list)
 
-# ORDERS (with delete, capital invested)
+# ORDERS
 @app.route("/orders", methods=["GET", "POST"])
 def orders():
     if 'user_id' not in session:
@@ -151,25 +225,21 @@ def orders():
     cur = conn.cursor()
     
     if request.method == "POST":
-        action = request.form.get("action")
-        if action == "add":
-            name = request.form.get("name")
-            product = request.form.get("product")
-            price = float(request.form.get("price") or 0)
-            capital = float(request.form.get("capital") or 0)
-            cur.execute("INSERT INTO orders (user_id, name, product, price, capital_invested) VALUES (%s, %s, %s, %s, %s)",
-                        (session['user_id'], name, product, price, capital))
+        name = request.form.get("name")
+        product = request.form.get("product")
+        price = request.form.get("price")
+        try:
+            price = float(price)
+            cur.execute("INSERT INTO orders (user_id, name, product, price) VALUES (%s, %s, %s, %s)",
+                        (session['user_id'], name, product, price))
             conn.commit()
             flash("Order added!", "success")
-        elif action == "delete":
-            order_id = request.form.get("order_id")
-            cur.execute("DELETE FROM orders WHERE id = %s AND user_id = %s", (order_id, session['user_id']))
-            conn.commit()
-            flash("Order deleted!", "success")
+        except ValueError:
+            flash("Invalid price format", "danger")
     
-    cur.execute("SELECT id, name, product, price, capital_invested FROM orders WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
+    cur.execute("SELECT name, product, price FROM orders WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
     orders_list = cur.fetchall()
-    total = sum(row[3] for row in orders_list)
+    total = sum(row[2] for row in orders_list)
     cur.close()
     conn.close()
     
