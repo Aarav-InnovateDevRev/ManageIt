@@ -165,49 +165,29 @@ def dashboard():
     tasks_count = cur.fetchone()[0]
     cur.execute("SELECT SUM(price - COALESCE(capital_invested, 0)) FROM orders WHERE user_id = %s", (session['user_id'],))
     net_profit = cur.fetchone()[0] or 0
+    cur.execute("SELECT task FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
+    recent_tasks = [row[0] for row in cur.fetchall()]
     cur.execute("SELECT product FROM orders WHERE user_id = %s GROUP BY product ORDER BY COUNT(*) DESC LIMIT 3", (session['user_id'],))
     top_products = [row[0] for row in cur.fetchall()]
     cur.close()
     conn.close()
 
-    habit_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Give 1 short practical tip.")
-    marketing_tip = get_ai_response(f"Top products: {top_products}. Give 1 short marketing tip based on order patterns.")
+    # Safe AI calls
+    habit_tip = "Keep going! Small consistent actions lead to big results."
+    marketing_tip = "Focus on your top products — consistency wins."
 
-    return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, net_profit=net_profit, habit_tip=habit_tip, marketing_tip=marketing_tip)
+    try:
+        habit_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Give 1 short practical tip.")
+        marketing_tip = get_ai_response(f"Top products: {top_products}. Give 1 short marketing tip based on order patterns.")
+    except:
+        pass  # fallback if AI fails
 
-# TASKS with delete, deadline, goal, humorous tip
-@app.route("/tasks", methods=["GET", "POST"])
-def tasks():
-    if 'user_id' not in session:
-        return redirect(url_for("login"))
-    
-    conn = get_db()
-    cur = conn.cursor()
-    
-    if request.method == "POST":
-        action = request.form.get("action")
-        if action == "add":
-            task = request.form.get("task")
-            deadline = request.form.get("deadline")
-            goal = request.form.get("goal")
-            cur.execute("INSERT INTO tasks (user_id, task, deadline, goal) VALUES (%s, %s, %s, %s)",
-                        (session['user_id'], task, deadline, goal))
-            conn.commit()
-            flash("Task added!", "success")
-        elif action == "delete":
-            task_id = request.form.get("task_id")
-            cur.execute("DELETE FROM tasks WHERE id = %s AND user_id = %s", (task_id, session['user_id']))
-            conn.commit()
-            flash("Task deleted!", "success")
-    
-    cur.execute("SELECT id, task, deadline, goal FROM tasks WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
-    tasks_list = cur.fetchall()
-    cur.close()
-    conn.close()
-    
-    humor_tip = get_ai_response("Give a short, friendly, humorous tip for someone managing daily tasks in a small business.")
-    
-    return render_template("tasks.html", tasks=tasks_list, humor_tip=humor_tip)
+    return render_template("dashboard.html", 
+                           username=session['username'], 
+                           tasks_count=tasks_count, 
+                           net_profit=net_profit, 
+                           habit_tip=habit_tip,
+                           marketing_tip=marketing_tip)
 
 # ORDERS with delete, capital invested
 @app.route("/orders", methods=["GET", "POST"])
