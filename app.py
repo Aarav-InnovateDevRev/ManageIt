@@ -3,7 +3,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import requests
 from database import get_db
-from datetime import date, timedelta
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or "supersecret1234567890changeit2026"
@@ -72,7 +71,7 @@ def init_db():
         cur.close()
         conn.close()
 
-# AI Helper for habit tips and analysis
+# AI Helper
 def get_ai_response(prompt):
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
@@ -84,15 +83,12 @@ def get_ai_response(prompt):
             json={
                 "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.7,
                 "max_tokens": 300
-            },
-            timeout=15
+            }
         )
-        response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"].strip()
     except:
-        return "Keep going! Small consistent actions lead to big results."
+        return "Keep going!"
 
 # SIGNUP
 @app.route("/signup", methods=["GET", "POST"])
@@ -109,13 +105,13 @@ def signup():
         try:
             cur.execute("SELECT 1 FROM users WHERE username = %s", (username,))
             if cur.fetchone():
-                flash("Username already exists! Try another one.", "danger")
+                flash("Username already exists!", "danger")
                 return redirect(url_for("signup"))
             
             hashed = generate_password_hash(password)
             cur.execute("INSERT INTO users (username, password) VALUES (%s, %s)", (username, hashed))
             conn.commit()
-            flash("Account created! Please login.", "success")
+            flash("Account created! Login now.", "success")
             return redirect(url_for("login"))
         except Exception as e:
             conn.rollback()
@@ -126,8 +122,7 @@ def signup():
     
     return render_template("signup.html")
 
-# LOGIN, LOGOUT, DASHBOARD, TASKS, ORDERS (with all requested features)
-
+# LOGIN
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -150,12 +145,14 @@ def login():
     
     return render_template("login.html")
 
+# LOGOUT
 @app.route("/logout")
 def logout():
     session.clear()
     flash("Logged out", "info")
     return redirect(url_for("login"))
 
+# DASHBOARD with AI Habit Analysis
 @app.route("/dashboard")
 def dashboard():
     if 'user_id' not in session:
@@ -169,12 +166,12 @@ def dashboard():
     net_profit = cur.fetchone()[0] or 0
     cur.execute("SELECT task FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
     recent_tasks = [row[0] for row in cur.fetchall()]
-    cur.execute("SELECT product, price FROM orders WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
-    recent_orders = cur.fetchall()
+    cur.execute("SELECT product FROM orders WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
+    recent_products = [row[0] for row in cur.fetchall()]
     cur.close()
     conn.close()
 
-    ai_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Give 1 short encouraging business tip.")
+    ai_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Recent products: {recent_products}. Give 1 short practical business tip.")
 
     return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, net_profit=net_profit, ai_tip=ai_tip)
 
@@ -208,12 +205,11 @@ def tasks():
     cur.close()
     conn.close()
     
-    # Humorous AI tip for tasks page
     humor_tip = get_ai_response("Give a short, friendly, humorous tip for someone managing daily tasks in a small business.")
     
     return render_template("tasks.html", tasks=tasks_list, humor_tip=humor_tip)
 
-# ORDERS with delete, capital invested, day-wise
+# ORDERS with delete, capital invested
 @app.route("/orders", methods=["GET", "POST"])
 def orders():
     if 'user_id' not in session:
@@ -239,7 +235,7 @@ def orders():
             conn.commit()
             flash("Order deleted!", "success")
     
-    cur.execute("SELECT id, name, product, price, capital_invested, order_date FROM orders WHERE user_id = %s ORDER BY order_date DESC", (session['user_id'],))
+    cur.execute("SELECT id, name, product, price, capital_invested FROM orders WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
     orders_list = cur.fetchall()
     total_revenue = sum(row[3] for row in orders_list)
     total_capital = sum(row[4] for row in orders_list)
