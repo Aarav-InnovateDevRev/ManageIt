@@ -7,18 +7,19 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        body { background: linear-gradient(to bottom, #fdf6e3, #f5e8c7); font-family: 'Segoe UI', sans-serif; }
-        .navbar { background-color: #5d4037 !important; } /* Darker brown for contrast */
-        .navbar-brand, .nav-link { color: white !important; font-weight: bold; }
-        .card { border-radius: 16px; box-shadow: 0 8px 30px rgba(139,69,19,0.15); background: #fffaf0; }
+        body { background: linear-gradient(to bottom, #fdf6e3, #f5e8c7); }
+        .navbar { background-color: #5d4037 !important; }
+        .navbar-brand, .nav-link { color: white !important; }
+        .card { background: #fffaf0; border-radius: 16px; box-shadow: 0 8px 25px rgba(139,69,19,0.15); }
         .btn-primary { background-color: #8d5524; border: none; }
         .btn-primary:hover { background-color: #6b3d1a; }
+        .ai-tip { background: #fffaf0; border-left: 5px solid #8d5524; }
     </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="/dashboard">📦 ManageIt</a>
+            <a class="navbar-brand fw-bold" href="/dashboard">📦 ManageIt</a>
             <div class="ms-auto">
                 <a href="/logout" class="btn btn-outline-light">Logout</a>
             </div>
@@ -30,38 +31,35 @@
         
         <div class="row g-4">
             <div class="col-md-4">
-                <div class="card text-center p-4 shadow">
+                <div class="card text-center p-4">
                     <i class="fas fa-list fa-3x mb-3 text-brown"></i>
                     <h4>Tasks</h4>
                     <p class="display-6">{{ tasks_count }}</p>
-                    <a href="/tasks" class="btn btn-outline-primary">View / Add Tasks</a>
+                    <a href="/tasks" class="btn btn-outline-primary w-100">Manage Tasks</a>
                 </div>
             </div>
-            
-            <div class="card p-4 mt-4">
-    <h5><i class="fas fa-lightbulb text-warning"></i> AI Business Tip</h5>
-    <p class="text-muted">{{ ai_tip | safe }}</p>
-            </div>
-            
             <div class="col-md-4">
-                <div class="card text-center p-4 shadow">
+                <div class="card text-center p-4">
                     <i class="fas fa-receipt fa-3x mb-3 text-brown"></i>
-                    <h4>Orders</h4>
+                    <h4>Revenue</h4>
                     <p class="display-6">₹{{ total_revenue|round(0) }}</p>
-                    <a href="/orders" class="btn btn-outline-primary">View / Add Orders</a>
+                    <a href="/orders" class="btn btn-outline-primary w-100">Manage Orders</a>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card text-center p-4 shadow">
+                <div class="card text-center p-4">
                     <i class="fas fa-robot fa-3x mb-3 text-brown"></i>
                     <h4>AI Assistant</h4>
-                    <p>Get business tips & ideas</p>
-                    <a href="/ai-chat" class="btn btn-primary">Talk to AI</a>
+                    <a href="/ai-chat" class="btn btn-primary w-100">Talk to AI</a>
                 </div>
             </div>
         </div>
-    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        <!-- AI Habit Tip -->
+        <div class="card p-4 mt-4 ai-tip">
+            <h5><i class="fas fa-lightbulb text-warning"></i> AI Business Insight</h5>
+            <p class="text-muted">{{ ai_tip | safe }}</p>
+        </div>
+    </div>
 </body>
 </html>
