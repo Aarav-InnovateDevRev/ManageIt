@@ -3,6 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import requests
 from database import get_db
+from datetime import date
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or "supersecret1234567890changeit2026"
@@ -111,7 +112,7 @@ def signup():
             hashed = generate_password_hash(password)
             cur.execute("INSERT INTO users (username, password) VALUES (%s, %s)", (username, hashed))
             conn.commit()
-            flash("Account created! Login now.", "success")
+            flash("Account created! Please login.", "success")
             return redirect(url_for("login"))
         except Exception as e:
             conn.rollback()
@@ -152,7 +153,7 @@ def logout():
     flash("Logged out", "info")
     return redirect(url_for("login"))
 
-# DASHBOARD with AI Habit Analysis
+# DASHBOARD with AI Habit & Marketing Analysis
 @app.route("/dashboard")
 def dashboard():
     if 'user_id' not in session:
@@ -164,16 +165,15 @@ def dashboard():
     tasks_count = cur.fetchone()[0]
     cur.execute("SELECT SUM(price - COALESCE(capital_invested, 0)) FROM orders WHERE user_id = %s", (session['user_id'],))
     net_profit = cur.fetchone()[0] or 0
-    cur.execute("SELECT task FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
-    recent_tasks = [row[0] for row in cur.fetchall()]
-    cur.execute("SELECT product FROM orders WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
-    recent_products = [row[0] for row in cur.fetchall()]
+    cur.execute("SELECT product FROM orders WHERE user_id = %s GROUP BY product ORDER BY COUNT(*) DESC LIMIT 3", (session['user_id'],))
+    top_products = [row[0] for row in cur.fetchall()]
     cur.close()
     conn.close()
 
-    ai_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Recent products: {recent_products}. Give 1 short practical business tip.")
+    habit_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Give 1 short practical tip.")
+    marketing_tip = get_ai_response(f"Top products: {top_products}. Give 1 short marketing tip based on order patterns.")
 
-    return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, net_profit=net_profit, ai_tip=ai_tip)
+    return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, net_profit=net_profit, habit_tip=habit_tip, marketing_tip=marketing_tip)
 
 # TASKS with delete, deadline, goal, humorous tip
 @app.route("/tasks", methods=["GET", "POST"])
@@ -235,7 +235,7 @@ def orders():
             conn.commit()
             flash("Order deleted!", "success")
     
-    cur.execute("SELECT id, name, product, price, capital_invested FROM orders WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
+    cur.execute("SELECT id, name, product, price, capital_invested, order_date FROM orders WHERE user_id = %s ORDER BY order_date DESC", (session['user_id'],))
     orders_list = cur.fetchall()
     total_revenue = sum(row[3] for row in orders_list)
     total_capital = sum(row[4] for row in orders_list)
@@ -244,6 +244,20 @@ def orders():
     conn.close()
     
     return render_template("orders.html", orders=orders_list, total_revenue=total_revenue, net_profit=net_profit)
+
+# Q/A SURVEY PAGE
+@app.route("/survey", methods=["GET", "POST"])
+def survey():
+    if 'user_id' not in session:
+        return redirect(url_for("login"))
+    
+    if request.method == "POST":
+        answers = request.form.to_dict()
+        prompt = f"User answers: {answers}. Analyse why their business might not be growing and give 3 practical tips."
+        analysis = get_ai_response(prompt)
+        return render_template("survey_result.html", analysis=analysis)
+    
+    return render_template("survey.html")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
