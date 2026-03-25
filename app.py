@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import requests
@@ -92,8 +92,30 @@ def get_ai_response(prompt):
     except:
         return "Keep going! Small consistent actions lead to big results."
 
-# SIGNUP, LOGIN, LOGOUT (same as before)
+# AI CHAT PAGE
+@app.route("/ai-chat")
+def ai_chat():
+    if 'user_id' not in session:
+        return redirect(url_for("login"))
+    return render_template("ai_chat.html")
 
+# AI CHAT API
+@app.route("/chat", methods=["POST"])
+def chat():
+    if 'user_id' not in session:
+        return jsonify({"error": "Please login first"}), 401
+    
+    message = request.json.get("message")
+    if not message:
+        return jsonify({"error": "No message provided"}), 400
+
+    try:
+        reply = get_ai_response(message)
+        return jsonify({"reply": reply})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# SIGNUP
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
@@ -125,6 +147,7 @@ def signup():
     
     return render_template("signup.html")
 
+# LOGIN
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -147,6 +170,7 @@ def login():
     
     return render_template("login.html")
 
+# LOGOUT
 @app.route("/logout")
 def logout():
     session.clear()
@@ -185,7 +209,7 @@ def dashboard():
 
     except Exception as e:
         print("Dashboard error:", str(e))
-        flash("Some data couldn't load.", "warning")
+        flash("Some data couldn't load. Showing basic view.", "warning")
 
     return render_template("dashboard.html", 
                            username=session['username'], 
