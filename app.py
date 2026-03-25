@@ -92,7 +92,8 @@ def get_ai_response(prompt):
     except:
         return "Keep going! Small consistent actions lead to big results."
 
-# SIGNUP
+# SIGNUP, LOGIN, LOGOUT (same as before)
+
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
@@ -124,7 +125,6 @@ def signup():
     
     return render_template("signup.html")
 
-# LOGIN
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -147,14 +147,13 @@ def login():
     
     return render_template("login.html")
 
-# LOGOUT
 @app.route("/logout")
 def logout():
     session.clear()
     flash("Logged out", "info")
     return redirect(url_for("login"))
 
-# DASHBOARD - Safe version with all AI tips
+# DASHBOARD
 @app.route("/dashboard")
 def dashboard():
     if 'user_id' not in session:
@@ -181,13 +180,12 @@ def dashboard():
         cur.close()
         conn.close()
 
-        # Safe AI calls
         habit_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Give 1 short practical tip.")
-        marketing_tip = get_ai_response(f"Top products: {top_products}. Give 1 short marketing tip based on order patterns.")
+        marketing_tip = get_ai_response(f"Top products: {top_products}. Give 1 short marketing tip.")
 
     except Exception as e:
         print("Dashboard error:", str(e))
-        flash("Some data couldn't load. Showing basic view.", "warning")
+        flash("Some data couldn't load.", "warning")
 
     return render_template("dashboard.html", 
                            username=session['username'], 
@@ -196,7 +194,7 @@ def dashboard():
                            habit_tip=habit_tip,
                            marketing_tip=marketing_tip)
 
-# TASKS with delete, deadline, goal, humorous tip
+# TASKS
 @app.route("/tasks", methods=["GET", "POST"])
 def tasks():
     if 'user_id' not in session:
@@ -230,7 +228,7 @@ def tasks():
     
     return render_template("tasks.html", tasks=tasks_list, humor_tip=humor_tip)
 
-# ORDERS with delete, capital invested
+# ORDERS
 @app.route("/orders", methods=["GET", "POST"])
 def orders():
     if 'user_id' not in session:
@@ -266,7 +264,7 @@ def orders():
     
     return render_template("orders.html", orders=orders_list, total_revenue=total_revenue, net_profit=net_profit)
 
-# Q/A SURVEY
+# SURVEY
 @app.route("/survey", methods=["GET", "POST"])
 def survey():
     if 'user_id' not in session:
