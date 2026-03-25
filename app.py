@@ -92,30 +92,24 @@ def get_ai_response(prompt):
     except:
         return "Keep going! Small consistent actions lead to big results."
 
-# AI CHAT PAGE
+# AI CHAT
 @app.route("/ai-chat")
 def ai_chat():
     if 'user_id' not in session:
         return redirect(url_for("login"))
     return render_template("ai_chat.html")
 
-# AI CHAT API
 @app.route("/chat", methods=["POST"])
 def chat():
     if 'user_id' not in session:
         return jsonify({"error": "Please login first"}), 401
-    
     message = request.json.get("message")
     if not message:
         return jsonify({"error": "No message provided"}), 400
+    reply = get_ai_response(message)
+    return jsonify({"reply": reply})
 
-    try:
-        reply = get_ai_response(message)
-        return jsonify({"reply": reply})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# SIGNUP
+# SIGNUP, LOGIN, LOGOUT (standard)
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
@@ -147,7 +141,6 @@ def signup():
     
     return render_template("signup.html")
 
-# LOGIN
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -170,7 +163,6 @@ def login():
     
     return render_template("login.html")
 
-# LOGOUT
 @app.route("/logout")
 def logout():
     session.clear()
@@ -191,32 +183,21 @@ def dashboard():
     try:
         conn = get_db()
         cur = conn.cursor()
-        
         cur.execute("SELECT COUNT(*) FROM tasks WHERE user_id = %s", (session['user_id'],))
         tasks_count = cur.fetchone()[0]
-        
         cur.execute("SELECT SUM(price - COALESCE(capital_invested, 0)) FROM orders WHERE user_id = %s", (session['user_id'],))
         net_profit = cur.fetchone()[0] or 0
-        
         cur.execute("SELECT product FROM orders WHERE user_id = %s GROUP BY product ORDER BY COUNT(*) DESC LIMIT 3", (session['user_id'],))
         top_products = [row[0] for row in cur.fetchall()]
-        
         cur.close()
         conn.close()
 
         habit_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Give 1 short practical tip.")
         marketing_tip = get_ai_response(f"Top products: {top_products}. Give 1 short marketing tip.")
-
     except Exception as e:
         print("Dashboard error:", str(e))
-        flash("Some data couldn't load. Showing basic view.", "warning")
 
-    return render_template("dashboard.html", 
-                           username=session['username'], 
-                           tasks_count=tasks_count, 
-                           net_profit=net_profit, 
-                           habit_tip=habit_tip,
-                           marketing_tip=marketing_tip)
+    return render_template("dashboard.html", username=session['username'], tasks_count=tasks_count, net_profit=net_profit, habit_tip=habit_tip, marketing_tip=marketing_tip)
 
 # TASKS
 @app.route("/tasks", methods=["GET", "POST"])
@@ -224,30 +205,35 @@ def tasks():
     if 'user_id' not in session:
         return redirect(url_for("login"))
     
-    conn = get_db()
-    cur = conn.cursor()
-    
-    if request.method == "POST":
-        action = request.form.get("action")
-        if action == "add":
-            task = request.form.get("task")
-            deadline = request.form.get("deadline")
-            goal = request.form.get("goal")
-            cur.execute("INSERT INTO tasks (user_id, task, deadline, goal) VALUES (%s, %s, %s, %s)",
-                        (session['user_id'], task, deadline, goal))
-            conn.commit()
-            flash("Task added!", "success")
-        elif action == "delete":
-            task_id = request.form.get("task_id")
-            cur.execute("DELETE FROM tasks WHERE id = %s AND user_id = %s", (task_id, session['user_id']))
-            conn.commit()
-            flash("Task deleted!", "success")
-    
-    cur.execute("SELECT id, task, deadline, goal FROM tasks WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
-    tasks_list = cur.fetchall()
-    cur.close()
-    conn.close()
-    
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        if request.method == "POST":
+            action = request.form.get("action")
+            if action == "add":
+                task = request.form.get("task")
+                deadline = request.form.get("deadline")
+                goal = request.form.get("goal")
+                cur.execute("INSERT INTO tasks (user_id, task, deadline, goal) VALUES (%s, %s, %s, %s)",
+                            (session['user_id'], task, deadline, goal))
+                conn.commit()
+                flash("Task added!", "success")
+            elif action == "delete":
+                task_id = request.form.get("task_id")
+                cur.execute("DELETE FROM tasks WHERE id = %s AND user_id = %s", (task_id, session['user_id']))
+                conn.commit()
+                flash("Task deleted!", "success")
+        
+        cur.execute("SELECT id, task, deadline, goal FROM tasks WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
+        tasks_list = cur.fetchall()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print("Tasks error:", str(e))
+        tasks_list = []
+        flash("Error loading tasks", "danger")
+
     humor_tip = get_ai_response("Give a short, friendly, humorous tip for someone managing daily tasks in a small business.")
     
     return render_template("tasks.html", tasks=tasks_list, humor_tip=humor_tip)
@@ -258,34 +244,41 @@ def orders():
     if 'user_id' not in session:
         return redirect(url_for("login"))
     
-    conn = get_db()
-    cur = conn.cursor()
-    
-    if request.method == "POST":
-        action = request.form.get("action")
-        if action == "add":
-            name = request.form.get("name")
-            product = request.form.get("product")
-            price = float(request.form.get("price") or 0)
-            capital = float(request.form.get("capital") or 0)
-            cur.execute("INSERT INTO orders (user_id, name, product, price, capital_invested) VALUES (%s, %s, %s, %s, %s)",
-                        (session['user_id'], name, product, price, capital))
-            conn.commit()
-            flash("Order added!", "success")
-        elif action == "delete":
-            order_id = request.form.get("order_id")
-            cur.execute("DELETE FROM orders WHERE id = %s AND user_id = %s", (order_id, session['user_id']))
-            conn.commit()
-            flash("Order deleted!", "success")
-    
-    cur.execute("SELECT id, name, product, price, capital_invested, order_date FROM orders WHERE user_id = %s ORDER BY order_date DESC", (session['user_id'],))
-    orders_list = cur.fetchall()
-    total_revenue = sum(row[3] for row in orders_list)
-    total_capital = sum(row[4] for row in orders_list)
-    net_profit = total_revenue - total_capital
-    cur.close()
-    conn.close()
-    
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        if request.method == "POST":
+            action = request.form.get("action")
+            if action == "add":
+                name = request.form.get("name")
+                product = request.form.get("product")
+                price = float(request.form.get("price") or 0)
+                capital = float(request.form.get("capital") or 0)
+                cur.execute("INSERT INTO orders (user_id, name, product, price, capital_invested) VALUES (%s, %s, %s, %s, %s)",
+                            (session['user_id'], name, product, price, capital))
+                conn.commit()
+                flash("Order added!", "success")
+            elif action == "delete":
+                order_id = request.form.get("order_id")
+                cur.execute("DELETE FROM orders WHERE id = %s AND user_id = %s", (order_id, session['user_id']))
+                conn.commit()
+                flash("Order deleted!", "success")
+        
+        cur.execute("SELECT id, name, product, price, capital_invested, order_date FROM orders WHERE user_id = %s ORDER BY order_date DESC", (session['user_id'],))
+        orders_list = cur.fetchall()
+        total_revenue = sum(row[3] for row in orders_list)
+        total_capital = sum(row[4] for row in orders_list)
+        net_profit = total_revenue - total_capital
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print("Orders error:", str(e))
+        orders_list = []
+        total_revenue = 0
+        net_profit = 0
+        flash("Error loading orders", "danger")
+
     return render_template("orders.html", orders=orders_list, total_revenue=total_revenue, net_profit=net_profit)
 
 # SURVEY
