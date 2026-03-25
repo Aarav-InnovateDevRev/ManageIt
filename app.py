@@ -159,28 +159,43 @@ def dashboard():
     if 'user_id' not in session:
         return redirect(url_for("login"))
     
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM tasks WHERE user_id = %s", (session['user_id'],))
-    tasks_count = cur.fetchone()[0]
-    cur.execute("SELECT SUM(price - COALESCE(capital_invested, 0)) FROM orders WHERE user_id = %s", (session['user_id'],))
-    net_profit = cur.fetchone()[0] or 0
-    cur.execute("SELECT task FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
-    recent_tasks = [row[0] for row in cur.fetchall()]
-    cur.execute("SELECT product FROM orders WHERE user_id = %s GROUP BY product ORDER BY COUNT(*) DESC LIMIT 3", (session['user_id'],))
-    top_products = [row[0] for row in cur.fetchall()]
-    cur.close()
-    conn.close()
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Basic stats
+        cur.execute("SELECT COUNT(*) FROM tasks WHERE user_id = %s", (session['user_id'],))
+        tasks_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT SUM(price - COALESCE(capital_invested, 0)) FROM orders WHERE user_id = %s", (session['user_id'],))
+        net_profit = cur.fetchone()[0] or 0
+        
+        # Recent data for AI
+        cur.execute("SELECT task FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
+        recent_tasks = [row[0] for row in cur.fetchall()]
+        
+        cur.execute("SELECT product FROM orders WHERE user_id = %s GROUP BY product ORDER BY COUNT(*) DESC LIMIT 3", (session['user_id'],))
+        top_products = [row[0] for row in cur.fetchall()]
+        
+        cur.close()
+        conn.close()
+        
+    except Exception as e:
+        flash(f"Database error: {str(e)}", "danger")
+        tasks_count = 0
+        net_profit = 0
+        recent_tasks = []
+        top_products = []
 
-    # Safe AI calls
+    # Safe AI calls with fallback
     habit_tip = "Keep going! Small consistent actions lead to big results."
     marketing_tip = "Focus on your top products — consistency wins."
 
     try:
-        habit_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Give 1 short practical tip.")
+        habit_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Recent tasks: {recent_tasks}. Give 1 short practical tip.")
         marketing_tip = get_ai_response(f"Top products: {top_products}. Give 1 short marketing tip based on order patterns.")
-    except:
-        pass  # fallback if AI fails
+    except Exception as ai_e:
+        print("AI tip failed:", str(ai_e))  # visible in Render logs
 
     return render_template("dashboard.html", 
                            username=session['username'], 
