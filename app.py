@@ -1,9 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import requests
 from database import get_db
-from datetime import date
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or "supersecret1234567890changeit2026"
@@ -72,11 +71,11 @@ def init_db():
         cur.close()
         conn.close()
 
-# AI Helper
+# Safe AI Helper
 def get_ai_response(prompt):
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        return "AI not available right now."
+        return "AI not available right now. Keep going!"
     try:
         response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
@@ -84,12 +83,14 @@ def get_ai_response(prompt):
             json={
                 "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 300
-            }
+                "max_tokens": 250
+            },
+            timeout=12
         )
+        response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"].strip()
     except:
-        return "Keep going!"
+        return "Keep going! Small consistent actions lead to big results."
 
 # SIGNUP
 @app.route("/signup", methods=["GET", "POST"])
@@ -153,49 +154,40 @@ def logout():
     flash("Logged out", "info")
     return redirect(url_for("login"))
 
-# DASHBOARD with AI Habit & Marketing Analysis
+# DASHBOARD - Safe version with all AI tips
 @app.route("/dashboard")
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for("login"))
     
+    tasks_count = 0
+    net_profit = 0
+    habit_tip = "Keep going! Small consistent actions lead to big results."
+    marketing_tip = "Focus on your top products for better marketing."
+
     try:
         conn = get_db()
         cur = conn.cursor()
         
-        # Basic stats
         cur.execute("SELECT COUNT(*) FROM tasks WHERE user_id = %s", (session['user_id'],))
         tasks_count = cur.fetchone()[0]
         
         cur.execute("SELECT SUM(price - COALESCE(capital_invested, 0)) FROM orders WHERE user_id = %s", (session['user_id'],))
         net_profit = cur.fetchone()[0] or 0
         
-        # Recent data for AI
-        cur.execute("SELECT task FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 5", (session['user_id'],))
-        recent_tasks = [row[0] for row in cur.fetchall()]
-        
         cur.execute("SELECT product FROM orders WHERE user_id = %s GROUP BY product ORDER BY COUNT(*) DESC LIMIT 3", (session['user_id'],))
         top_products = [row[0] for row in cur.fetchall()]
         
         cur.close()
         conn.close()
-        
-    except Exception as e:
-        flash(f"Database error: {str(e)}", "danger")
-        tasks_count = 0
-        net_profit = 0
-        recent_tasks = []
-        top_products = []
 
-    # Safe AI calls with fallback
-    habit_tip = "Keep going! Small consistent actions lead to big results."
-    marketing_tip = "Focus on your top products — consistency wins."
-
-    try:
-        habit_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Recent tasks: {recent_tasks}. Give 1 short practical tip.")
+        # Safe AI calls
+        habit_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Give 1 short practical tip.")
         marketing_tip = get_ai_response(f"Top products: {top_products}. Give 1 short marketing tip based on order patterns.")
-    except Exception as ai_e:
-        print("AI tip failed:", str(ai_e))  # visible in Render logs
+
+    except Exception as e:
+        print("Dashboard error:", str(e))
+        flash("Some data couldn't load. Showing basic view.", "warning")
 
     return render_template("dashboard.html", 
                            username=session['username'], 
@@ -203,6 +195,40 @@ def dashboard():
                            net_profit=net_profit, 
                            habit_tip=habit_tip,
                            marketing_tip=marketing_tip)
+
+# TASKS with delete, deadline, goal, humorous tip
+@app.route("/tasks", methods=["GET", "POST"])
+def tasks():
+    if 'user_id' not in session:
+        return redirect(url_for("login"))
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "add":
+            task = request.form.get("task")
+            deadline = request.form.get("deadline")
+            goal = request.form.get("goal")
+            cur.execute("INSERT INTO tasks (user_id, task, deadline, goal) VALUES (%s, %s, %s, %s)",
+                        (session['user_id'], task, deadline, goal))
+            conn.commit()
+            flash("Task added!", "success")
+        elif action == "delete":
+            task_id = request.form.get("task_id")
+            cur.execute("DELETE FROM tasks WHERE id = %s AND user_id = %s", (task_id, session['user_id']))
+            conn.commit()
+            flash("Task deleted!", "success")
+    
+    cur.execute("SELECT id, task, deadline, goal FROM tasks WHERE user_id = %s ORDER BY id DESC", (session['user_id'],))
+    tasks_list = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    humor_tip = get_ai_response("Give a short, friendly, humorous tip for someone managing daily tasks in a small business.")
+    
+    return render_template("tasks.html", tasks=tasks_list, humor_tip=humor_tip)
 
 # ORDERS with delete, capital invested
 @app.route("/orders", methods=["GET", "POST"])
@@ -240,7 +266,7 @@ def orders():
     
     return render_template("orders.html", orders=orders_list, total_revenue=total_revenue, net_profit=net_profit)
 
-# Q/A SURVEY PAGE
+# Q/A SURVEY
 @app.route("/survey", methods=["GET", "POST"])
 def survey():
     if 'user_id' not in session:
