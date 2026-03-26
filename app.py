@@ -71,7 +71,7 @@ def init_db():
         cur.close()
         conn.close()
 
-# Safe AI Helper
+# Safe AI Helper - Increased tokens + better instruction
 def get_ai_response(prompt):
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
@@ -82,14 +82,16 @@ def get_ai_response(prompt):
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
                 "model": "llama-3.3-70b-versatile",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 250
+                "messages": [{"role": "user", "content": prompt + " Give a complete, full answer without cutting off."}],
+                "max_tokens": 600,   # Increased from 250
+                "temperature": 0.7
             },
-            timeout=12
+            timeout=15
         )
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"].strip()
-    except:
+    except Exception as e:
+        print("AI error:", str(e))
         return "Keep going! Small consistent actions lead to big results."
 
 # AI CHAT
