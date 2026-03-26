@@ -82,7 +82,7 @@ def get_ai_response(prompt):
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
                 "model": "llama-3.3-70b-versatile",
-                "messages": [{"role": "user", "content": prompt + " Give a short and to-the-point answer in no more than 300 tokens. Be clear and complete but concise."}],
+                "messages": [{"role": "user", "content": prompt + " Give a short and to-the-point answer in no more than 300 tokens or less than 150 tokens. Be clear and complete but concise."}],
                 "max_tokens": 300,      # Enforced limit
                 "temperature": 0.7
             },
