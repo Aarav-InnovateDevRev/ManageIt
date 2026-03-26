@@ -8,14 +8,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         body { background: linear-gradient(to bottom, #fdf6e3, #f5e8c7); }
+        .navbar { background-color: #5d4037 !important; }
+        .nav-link { color: white !important; font-weight: bold; }
         .card { background: #fffaf0; border: 1px solid #d7b99f; border-radius: 12px; }
         .order-text { color: #5d4037; font-weight: 500; }
+        .btn-back { background-color: #fffaf0; color: #5d4037; border: 2px solid #5d4037; }
+        .btn-back:hover { background-color: #5d4037; color: white; }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-brown">
+    <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="/dashboard">← Dashboard</a>
+            <a class="navbar-brand fw-bold" href="/dashboard">📦 ManageIt</a>
+            <a href="/dashboard" class="btn btn-back ms-auto">← Back to Dashboard</a>
         </div>
     </nav>
 
