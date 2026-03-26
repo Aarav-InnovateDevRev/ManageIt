@@ -8,14 +8,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         body { background: linear-gradient(to bottom, #fdf6e3, #f5e8c7); }
-        .card { background: #fffaf0; border: 1px solid #d7b99f; border-radius: 12px; box-shadow: 0 4px 15px rgba(139,69,19,0.1); }
+        .navbar { background-color: #5d4037 !important; }
+        .nav-link { color: white !important; font-weight: bold; }
+        .card { background: #fffaf0; border: 1px solid #d7b99f; border-radius: 12px; }
         .task-text { color: #5d4037; font-weight: 500; }
+        .btn-back { background-color: #fffaf0; color: #5d4037; border: 2px solid #5d4037; }
+        .btn-back:hover { background-color: #5d4037; color: white; }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-brown">
+    <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="/dashboard">← Back to Dashboard</a>
+            <a class="navbar-brand fw-bold" href="/dashboard">📦 ManageIt</a>
+            <a href="/dashboard" class="btn btn-back ms-auto">← Back to Dashboard</a>
         </div>
     </nav>
 
@@ -25,33 +30,45 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
 
+        <div class="alert alert-info">
+            <i class="fas fa-lightbulb"></i> {{ humor_tip | safe }}
+        </div>
+
         <form method="POST" class="input-group mb-4">
-            <input type="text" name="task" class="form-control form-control-lg" placeholder="Add new task..." required>
-            <button class="btn btn-primary" type="submit"><i class="fas fa-plus"></i> Add</button>
+            <input type="hidden" name="action" value="add">
+            <input type="text" name="task" class="form-control form-control-lg" placeholder="New task..." required>
+            <input type="date" name="deadline" class="form-control">
+            <input type="text" name="goal" class="form-control" placeholder="Goal/Plan">
+            <button class="btn btn-primary" type="submit">Add Task</button>
         </form>
 
         <div class="row">
             {% for task in tasks %}
                 <div class="col-md-6 mb-3">
                     <div class="card p-3">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-check-circle text-success me-3 fa-lg"></i>
-                            <div class="task-text">{{ task[1] }}</div> <!-- task text is now visible -->
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <div class="task-text">{{ task[1] }}</div>
+                                {% if task[2] %}<small class="text-muted">Deadline: {{ task[2] }}</small>{% endif %}
+                                {% if task[3] %}<small class="text-muted">Goal: {{ task[3] }}</small>{% endif %}
+                            </div>
+                            <form method="POST" style="display:inline;">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="task_id" value="{{ task[0] }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
                         </div>
                     </div>
                 </div>
             {% else %}
-                <p class="text-center text-muted">No tasks yet — add your first one above!</p>
+                <p class="text-center text-muted">No tasks yet. Add one above!</p>
             {% endfor %}
         </div>
     </div>
 </body>
-    </html>
+</html>
