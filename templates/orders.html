@@ -8,14 +8,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         body { background: linear-gradient(to bottom, #fdf6e3, #f5e8c7); }
-        .card { background: #fffaf0; border: 1px solid #d7b99f; border-radius: 12px; box-shadow: 0 4px 15px rgba(139,69,19,0.1); }
+        .navbar { background-color: #5d4037 !important; }
+        .nav-link { color: white !important; font-weight: bold; }
+        .card { background: #fffaf0; border: 1px solid #d7b99f; border-radius: 12px; }
         .order-text { color: #5d4037; font-weight: 500; }
+        .btn-back { background-color: #fffaf0; color: #5d4037; border: 2px solid #5d4037; }
+        .btn-back:hover { background-color: #5d4037; color: white; }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-brown">
+    <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="/dashboard">← Back to Dashboard</a>
+            <a class="navbar-brand fw-bold" href="/dashboard">📦 ManageIt</a>
+            <a href="/dashboard" class="btn btn-back ms-auto">← Back to Dashboard</a>
         </div>
     </nav>
 
@@ -25,45 +30,54 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
 
         <form method="POST" class="row g-3 mb-5">
-            <div class="col-md-4">
+            <input type="hidden" name="action" value="add">
+            <div class="col-md-3">
                 <input type="text" name="name" class="form-control" placeholder="Customer Name" required>
             </div>
-            <div class="col-md-4">
-                <input type="text" name="product" class="form-control" placeholder="Product (e.g. Wedding Cards)" required>
+            <div class="col-md-3">
+                <input type="text" name="product" class="form-control" placeholder="Product" required>
             </div>
             <div class="col-md-2">
                 <input type="number" step="0.01" name="price" class="form-control" placeholder="Price ₹" required>
+            </div>
+            <div class="col-md-2">
+                <input type="number" step="0.01" name="capital" class="form-control" placeholder="Capital ₹">
             </div>
             <div class="col-md-2">
                 <button type="submit" class="btn btn-primary w-100">Add Order</button>
             </div>
         </form>
 
-        <h5 class="text-center mb-4">Total Revenue: ₹{{ total|round(0) }}</h5>
+        <h5 class="mb-4">Total Revenue: ₹{{ total_revenue|round(0) }} | Net Profit: ₹{{ net_profit|round(0) }}</h5>
 
         <div class="row">
             {% for order in orders %}
                 <div class="col-md-6 mb-3">
                     <div class="card p-3">
-                        <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex justify-content-between">
                             <div>
-                                <strong class="order-text">{{ order[0] }}</strong> — {{ order[1] }}
+                                <strong class="order-text">{{ order[1] }}</strong> — {{ order[2] }}
+                                <br><small class="text-muted">Capital: ₹{{ order[4] }}</small>
                             </div>
-                            <span class="badge bg-success">₹{{ order[2]|round(2) }}</span>
+                            <div class="text-end">
+                                <span class="badge bg-success">₹{{ order[3] }}</span>
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="order_id" value="{{ order[0] }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger ms-2">Delete</button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>
             {% else %}
-                <p class="text-center text-muted">No orders yet — add your first one above!</p>
+                <p class="text-center text-muted">No orders yet. Add one above!</p>
             {% endfor %}
         </div>
     </div>
