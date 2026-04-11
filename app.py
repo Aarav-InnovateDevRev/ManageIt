@@ -191,17 +191,27 @@ def dashboard():
     try:
         conn = get_db()
         cur = conn.cursor()
+        
         cur.execute("SELECT COUNT(*) FROM tasks WHERE user_id = %s", (session['user_id'],))
         tasks_count = cur.fetchone()[0]
+        
         cur.execute("SELECT SUM(price - COALESCE(capital_invested, 0)) FROM orders WHERE user_id = %s", (session['user_id'],))
         net_profit = cur.fetchone()[0] or 0
-        cur.execute("SELECT product FROM orders WHERE user_id = %s GROUP BY product ORDER BY COUNT(*) DESC LIMIT 3", (session['user_id'],))
-        top_products = [row[0] for row in cur.fetchall()]
+        
+        # Fetch real content for AI to analyse
+        cur.execute("SELECT task FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 8", (session['user_id'],))
+        recent_tasks = [row[0] for row in cur.fetchall()]
+        
+        cur.execute("SELECT product FROM orders WHERE user_id = %s ORDER BY id DESC LIMIT 8", (session['user_id'],))
+        recent_products = [row[0] for row in cur.fetchall()]
+        
         cur.close()
         conn.close()
 
-        habit_tip = get_ai_response(f"User has {tasks_count} tasks and net profit ₹{net_profit}. Give 1 short practical tip.")
-        marketing_tip = get_ai_response(f"Top products: {top_products}. Give 1 short marketing tip.")
+        # Now AI sees both numbers + actual task/product names
+        habit_tip = get_ai_response(f"User has {tasks_count} tasks: {recent_tasks}. Net profit ₹{net_profit}. Give 1 short practical tip.")
+        marketing_tip = get_ai_response(f"Recent products ordered: {recent_products}. Give 1 short marketing tip based on real order patterns.")
+
     except Exception as e:
         print("Dashboard error:", str(e))
 
@@ -297,7 +307,27 @@ def survey():
     
     if request.method == "POST":
         answers = request.form.to_dict()
-        prompt = f"User answers: {answers}. Analyse why their business might not be growing and give 3 practical tips."
+        
+        # Fetch real user data so AI can analyse orders + tasks + survey answers together
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT task FROM tasks WHERE user_id = %s ORDER BY id DESC LIMIT 10", (session['user_id'],))
+            tasks = [row[0] for row in cur.fetchall()]
+            cur.execute("SELECT product, price, capital_invested FROM orders WHERE user_id = %s ORDER BY id DESC LIMIT 10", (session['user_id'],))
+            orders = cur.fetchall()
+            cur.close()
+            conn.close()
+        except:
+            tasks = []
+            orders = []
+
+        prompt = f"""
+        User survey answers: {answers}
+        Recent tasks: {tasks}
+        Recent orders (product, price, capital): {orders}
+        Analyse the full picture and give 3 practical tips on why the business may not be growing and how to improve.
+        """
         analysis = get_ai_response(prompt)
         return render_template("survey_result.html", analysis=analysis)
     
