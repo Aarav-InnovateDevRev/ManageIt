@@ -169,6 +169,13 @@ def logout():
     session.clear()
     flash("Logged out", "info")
     return redirect(url_for("login"))
+# Smart Redirect for wrong URLs
+@app.route("/smart-redirect")
+def smart_redirect():
+    if 'user_id' in session:
+        return redirect(url_for("dashboard"))
+    else:
+        return redirect(url_for("signup"))
 
 # DASHBOARD
 @app.route("/dashboard")
