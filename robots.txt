@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://manageit-gk0a.onrender.com/sitemap.xml
